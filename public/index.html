@@ -91,21 +91,59 @@
                     What if your clothing budget ended? You will get an alert. The goal is to never go over the budget.
                 </p>
             </article>
-    
+
+            <style>
+                .chart-container {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 20px;
+                    margin: 20px 0;
+                }
+                .chart-article {
+                    flex: 1;
+                    max-width: 48%;
+                }
+                .d3-chart svg {
+                    width: 100%;
+                    height: 100%;
+                }
+                path.slice {
+                    stroke-width: 2px;
+                }
+                polyline {
+                    opacity: .3;
+                    stroke: black;
+                    stroke-width: 2px;
+                    fill: none;
+                }
+                .d3-chart {
+                    width: 100%;
+                    height: 400px;
+                    position: relative;
+                }
+            </style>
+
+            <div class="chart-container">
+                <article class="chart-article">
+                    <h1>Chart.js</h1>
+                    <p>
+                        <!-- This is an A11y Change: Add aria-label to canvas -->
+                        <canvas id="myChart" width="400" height="400" aria-label="Budget distribution chart" role="img"></canvas>
+                    </p>
+                </article>
+
+                <article class="chart-article">
+                    <h1>D3.js Chart</h1>
+                    <div class="d3-chart"></div>
+                </article>
+            </div>
+
             <article>
                 <h1>Results</h1>
                 <p>
                     People who stick to a financial plan, budgeting every expense, get out of debt faster!
                     Also, they to live happier lives... since they expend without guilt or fear... 
                     because they know it is all good and accounted for.
-                </p>
-            </article>
-    
-            <article>
-                <h1>Chart</h1>
-                <p>
-                    <!-- This is an A11y Change: Add aria-label to canvas -->
-                    <canvas id="myChart" width="400" height="400" aria-label="Budget distribution chart" role="img"></canvas>
                 </p>
             </article>
 
@@ -122,6 +160,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.20.0/axios.min.js" integrity="sha512-quHCp3WbBNkwLfYUMd+KwBAgpVukJu5MncuQaWXgCrfgcxCJAq/fo+oqrRKOj+UKEmyMCG3tb8RB63W+EmrOBg==" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.min.js" integrity="sha512-s+xg36jbIujB2S2VKfpGmlC3T5V2TF3lY48DX7u2r9XzGzgPsa6wTpOQA7J9iffvdeBN0q9tKzRxVxw1JviZPg==" crossorigin="anonymous"></script>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
 
     <script>
         var dataSource = {
@@ -151,14 +190,139 @@
             });
         }
 
+        // D3.js Implementation
+        var svg = d3.select(".d3-chart")
+            .append("svg")
+            .append("g");
+
+        svg.append("g")
+            .attr("class", "slices");
+        svg.append("g")
+            .attr("class", "labels");
+        svg.append("g")
+            .attr("class", "lines");
+
+        var margin = {top: 20, right: 90, bottom: 20, left: 90};
+        var width = 400 - margin.left - margin.right,
+            height = 400 - margin.top - margin.bottom,
+            radius = Math.min(width, height) / 2;
+
+        var pie = d3.layout.pie()
+            .sort(null)
+            .value(function(d) {
+                return d.budget;
+            });
+
+        var arc = d3.svg.arc()
+            .outerRadius(radius * 0.8)
+            .innerRadius(radius * 0.4);
+
+        var outerArc = d3.svg.arc()
+            .innerRadius(radius * 0.9)
+            .outerRadius(radius * 0.9);
+
+        svg.attr("transform", "translate(" + (width / 2 + margin.left) + "," + (height / 2 + margin.top) + ")");
+
+        var key = function(d){ return d.data.title; };
+
+        var color = d3.scale.ordinal()
+            .range(['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF5C5C', '#47B39C']);
+
+        function createD3Chart(data) {
+            /* ------- PIE SLICES -------*/
+            var slice = svg.select(".slices").selectAll("path.slice")
+                .data(pie(data), key);
+
+            slice.enter()
+                .insert("path")
+                .style("fill", function(d, i) { return color(i); })
+                .attr("class", "slice");
+
+            slice
+                .transition().duration(1000)
+                .attrTween("d", function(d) {
+                    this._current = this._current || d;
+                    var interpolate = d3.interpolate(this._current, d);
+                    this._current = interpolate(0);
+                    return function(t) {
+                        return arc(interpolate(t));
+                    };
+                });
+
+            slice.exit()
+                .remove();
+
+            /* ------- TEXT LABELS -------*/
+            var text = svg.select(".labels").selectAll("text")
+                .data(pie(data), key);
+
+            text.enter()
+                .append("text")
+                .attr("dy", ".35em")
+                .text(function(d) {
+                    return d.data.title + ': $' + d.data.budget;
+                });
+
+            function midAngle(d){
+                return d.startAngle + (d.endAngle - d.startAngle)/2;
+            }
+
+            text.transition().duration(1000)
+                .attrTween("transform", function(d) {
+                    this._current = this._current || d;
+                    var interpolate = d3.interpolate(this._current, d);
+                    this._current = interpolate(0);
+                    return function(t) {
+                        var d2 = interpolate(t);
+                        var pos = outerArc.centroid(d2);
+                        pos[0] = radius * 0.8 * (midAngle(d2) < Math.PI ? 1 : -1);
+                        return "translate("+ pos +")";
+                    };
+                })
+                .style("text-anchor", function(d) {
+                    return midAngle(d) < Math.PI ? "start" : "end";
+                })
+                .style("font-size", "12px");
+
+            text.exit()
+                .remove();
+
+            /* ------- SLICE TO TEXT POLYLINES -------*/
+            var polyline = svg.select(".lines").selectAll("polyline")
+                .data(pie(data), key);
+
+            polyline.enter()
+                .append("polyline");
+
+            polyline.transition().duration(1000)
+                .attrTween("points", function(d){
+                    this._current = this._current || d;
+                    var interpolate = d3.interpolate(this._current, d);
+                    this._current = interpolate(0);
+                    return function(t) {
+                        var d2 = interpolate(t);
+                        var pos = outerArc.centroid(d2);
+                        pos[0] = radius * 0.75 * (midAngle(d2) < Math.PI ? 1 : -1);
+                        return [arc.centroid(d2), outerArc.centroid(d2), pos];
+                    };         
+                });
+
+            polyline.exit()
+                .remove();
+        }
+
         function getBudget() {
             axios.get('http://localhost:3000/budget')
             .then(function (res) {
+                // Update Chart.js
                 for (var i = 0; i < res.data.myBudget.length; i++) {
                     dataSource.datasets[0].data[i] = res.data.myBudget[i].budget;
                     dataSource.labels[i] = res.data.myBudget[i].title;
-                    createChart();
                 }
+                createChart();
+                
+                // Update D3.js
+                createD3Chart(res.data.myBudget);
             });
         }
 
