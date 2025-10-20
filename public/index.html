@@ -167,16 +167,7 @@
                 datasets: [
                     {
                         data: [],
-                        backgroundColor: [
-                            '#FF6384', 
-                            '#36A2EB',
-                            '#FFCE56',
-                            '#4BC0C0',
-                            '#9966FF',
-                            '#FF9F40',
-                            '#FF5C5C',
-                            '#47B39C' 
-                        ]
+                        backgroundColor: []
                     }
                 ],
                 labels: []
@@ -314,15 +305,17 @@
         function getBudget() {
             axios.get('http://localhost:3000/budget')
             .then(function (res) {
-                // Update Chart.js
+                // Update Chart.js and use colors from the DB
                 for (var i = 0; i < res.data.myBudget.length; i++) {
                     dataSource.datasets[0].data[i] = res.data.myBudget[i].budget;
                     dataSource.labels[i] = res.data.myBudget[i].title;
+                    dataSource.datasets[0].backgroundColor[i] = res.data.myBudget[i].color || '#CCCCCC';
                 }
                 createChart();
-                
-                // Update D3.js
-                createD3Chart(res.data.myBudget);
+
+                // Update D3.js - use color field
+                var d3data = res.data.myBudget.map(function(d) { return { title: d.title, budget: d.budget, color: d.color || '#CCCCCC' }; });
+                createD3Chart(d3data);
             });
         }
 
